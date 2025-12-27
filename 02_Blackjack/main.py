@@ -6,6 +6,7 @@ from BlackJack import (
     give_up,
 )
 
+
 def main():
     print(new_game())
 
