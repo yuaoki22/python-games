@@ -11,7 +11,7 @@ def main():
     print(new_game())
 
     while True:
-        cmd = input("hit/stand/reveal/giveup > ").strip().lower()
+        cmd = input("hit/stand/reveal/new/end > ").strip().lower()
 
         if cmd == "hit":
             res = player_hit()
@@ -19,10 +19,13 @@ def main():
             res = player_stand()
         elif cmd == "reveal":
             res = reveal()
-        elif cmd == "giveup":
-            res = give_up()
+        elif cmd == "new":
+            res = new_game()
+        elif cmd == "end":
+            print({"status": "end", "message": "ゲームを終了します"})
+            break
         else:
-            print({"status": "error", "message": "hit/stand/reveal/giveup から選んでください"})
+            print({"status": "error", "message": "hit/stand/reveal/new/end から選んでください"})
             continue
 
         print(res)

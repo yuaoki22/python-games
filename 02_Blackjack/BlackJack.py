@@ -71,7 +71,16 @@ def new_game() -> Dict[str, Any]:
     プレイヤー2枚、ディーラー2枚配る（ディーラーの1枚は隠し）
     """
     global state
-    state = BlackjackState(deck=make_deck(), phase="player_turn")
+    if not state.deck:
+        state.deck = make_deck()
+
+    state.player_hand = []
+    state.dealer_hand = []
+    state.phase = "player_turn"
+    state.result = None
+
+    if len(state.deck) < 4:
+        state.deck = make_deck()
 
     # 初期配牌
     state.player_hand = [state.deck.pop(), state.deck.pop()]
