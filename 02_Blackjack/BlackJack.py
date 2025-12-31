@@ -57,6 +57,9 @@ class BlackjackState:
     dealer_hand: List[str] = field(default_factory=list)
     phase: str = "not_started"  # not_started / player_turn / dealer_turn / finished
     result: Optional[str] = None  # player_win / dealer_win / push / None
+    chips: int = 1000
+    bet: int = 0
+    payout_done: bool = False
 
 
 # -----------------------------
@@ -71,6 +74,17 @@ def new_game() -> Dict[str, Any]:
     プレイヤー2枚、ディーラー2枚配る（ディーラーの1枚は隠し）
     """
     global state
+    if state.chips <= 0:
+        state.phase = "finished"
+        state.result = "dealer_win"
+        return _build_response(status="bankrupt", message="chips are 0. game over.")
+
+    if state.bet <= 0:
+        return _build_response(status="error", message="set bet first.")
+
+    if state.bet > state.chips:
+        return _build_response(status="error", message="bet exceeds chips.")
+
     if not state.deck:
         state.deck = make_deck()
 
@@ -78,9 +92,13 @@ def new_game() -> Dict[str, Any]:
     state.dealer_hand = []
     state.phase = "player_turn"
     state.result = None
+    state.payout_done = False
 
     if len(state.deck) < 4:
         state.deck = make_deck()
+
+    # place bet
+    state.chips -= state.bet
 
     # 初期配牌
     state.player_hand = [state.deck.pop(), state.deck.pop()]
@@ -99,7 +117,14 @@ def new_game() -> Dict[str, Any]:
         else:
             state.result = "dealer_win"
 
-        return _build_response(status="finished", message="初手で決着しました。")
+        if p_bj and d_bj:
+            msg = "初手で決着しました。引き分けです。"
+        elif p_bj:
+            msg = "初手で決着しました。プレイヤーの勝ちです。"
+        else:
+            msg = "初手で決着しました。ディーラーの勝ちです。"
+
+        return _build_response(status="finished", message=msg)
 
     return _build_response(status="started", message="ゲーム開始！ Hit か Stand を選んでください。")
 
@@ -146,11 +171,10 @@ def dealer_play() -> Dict[str, Any]:
 
 
 def reveal() -> Dict[str, Any]:
-    """現在の状態を返す（UI表示用）"""
+    """Return current state for UI."""
     if state.phase == "not_started":
-        return {"status": "error", "message": "ゲームを開始してください。"}
-    return _build_response(status="state", message="現在の状態です。")
-
+        return _build_response(status="error", message="start the game first.")
+    return _build_response(status="state", message="current state.")
 
 def give_up() -> Dict[str, Any]:
     """ギブアップ（即負け）"""
@@ -200,6 +224,14 @@ def _build_response(status: str, message: str) -> Dict[str, Any]:
         d_visible = d_hand
         d_value = hand_value(d_hand)
 
+    if state.phase == "finished" and state.bet > 0 and not state.payout_done:
+        if state.result == "player_win":
+            state.chips += state.bet * 2
+        elif state.result == "push":
+            state.chips += state.bet
+        state.bet = 0
+        state.payout_done = True
+
     return {
         "status": status,
         "phase": state.phase,
@@ -216,4 +248,23 @@ def _build_response(status: str, message: str) -> Dict[str, Any]:
         },
         "result": state.result,
         "deck_remaining": len(state.deck),
+        "chips": state.chips,
+        "bet": state.bet,
     }
+
+
+def set_bet(amount: int) -> Dict[str, Any]:
+    if state.phase in ("player_turn", "dealer_turn"):
+        return {"status": "error", "message": "cannot change bet during round."}
+
+    if state.bet > 0 and state.phase != "finished":
+        return {"status": "error", "message": "bet already set. finish the round first."}
+
+    if amount <= 0 or amount % 100 != 0:
+        return {"status": "error", "message": "bet must be a positive multiple of 100."}
+
+    if amount > state.chips:
+        return {"status": "error", "message": "bet exceeds chips."}
+
+    state.bet = amount
+    return _build_response(status="bet", message=f"bet set to {amount}.")
